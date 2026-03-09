@@ -9,9 +9,9 @@ Uma aplicação web local e simples para baixar vídeos e áudio do YouTube — 
 Cola o link do YouTube, escolhe a qualidade e baixa. Simples assim.
 
 ---
-![Sreenshot da interface sem link](image.png)
-![Sreenshot da interface já com o link do vídeo](image-1.png)
-![alt text](image-2.png)
+![Interface sem link](./image.png)
+![Interface com vídeo](./image-1.png)
+![Download em progresso](./image-2.png)
 
 
 ---
