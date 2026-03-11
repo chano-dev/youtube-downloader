@@ -1,79 +1,61 @@
 // ============================================================
-// server.js — O servidor backend da aplicação
+// server.js — Backend do YT Downloader
+// Actualizado com CORS para suportar a extensão do browser
 // ============================================================
 
-// --- IMPORTAÇÕES ---
-// 'express' é o framework web (instalaste com npm install express)
 const express = require('express');
-
-// 'child_process' é um módulo NATIVO do Node.js (não precisa instalar)
-// 'spawn' permite executar programas externos (como o yt-dlp.exe)
-// e capturar a saída em tempo real (diferente de exec que espera acabar)
 const { spawn } = require('child_process');
-
-// 'path' é um módulo nativo para trabalhar com caminhos de ficheiros
-// Evita problemas entre Windows (\) e Linux (/)
 const path = require('path');
-
-// 'fs' (File System) é um módulo nativo para trabalhar com ficheiros
-// Vamos usar para verificar se pastas existem
 const fs = require('fs');
 
-// --- CONFIGURAÇÃO ---
-// Cria a aplicação Express (equivalente a criar a app no Laravel)
 const app = express();
-
-// Define a porta onde o servidor vai correr
 const PORT = 3000;
 
-// Caminhos importantes
-// path.join() junta pedaços de caminho de forma segura
-// __dirname é uma variável especial do Node que dá o caminho da pasta actual
 const YT_DLP_PATH = path.join(__dirname, 'bin', 'yt-dlp.exe');
 const FFMPEG_PATH = path.join(__dirname, 'bin');
 const DOWNLOADS_PATH = path.join(__dirname, 'downloads');
 
-// Cria a pasta downloads se não existir
-// { recursive: true } é como mkdir -p no Linux
 if (!fs.existsSync(DOWNLOADS_PATH)) {
     fs.mkdirSync(DOWNLOADS_PATH, { recursive: true });
 }
 
 // --- MIDDLEWARES ---
-// Middleware = código que corre ANTES das rotas (como middleware no Laravel)
-
-// express.json() permite receber dados JSON no body dos pedidos POST
-// (equivalente a ter Content-Type: application/json)
 app.use(express.json());
 
-// express.static() serve ficheiros estáticos (HTML, CSS, JS) da pasta 'public'
-// Quando acedes a http://localhost:3000, ele serve public/index.html
+// CORS — permite que a extensão do browser comunique com o servidor
+// Sem isto, o browser bloqueia os pedidos vindos da extensão
+// CORS — TEM que vir antes do static e das rotas
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 
 // ============================================================
-// ROTA 1: Obter informações do vídeo (título, formatos disponíveis)
+// ROTA: Health Check (usado pela extensão para verificar se o servidor está activo)
 // ============================================================
-// GET /api/info?url=LINK_DO_VIDEO
-// Equivalente Laravel: Route::get('/api/info', function(Request $request) {...})
-app.get('/api/info', (req, res) => {
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'online', version: '1.0.0' });
+});
 
-    // req.query.url é como $request->query('url') no Laravel
+
+// ============================================================
+// ROTA: Obter informações do vídeo
+// ============================================================
+app.get('/api/info', (req, res) => {
     const videoUrl = req.query.url;
 
-    // Validação básica
     if (!videoUrl) {
-        // res.status(400).json() é como return response()->json(..., 400)
         return res.status(400).json({ error: 'URL é obrigatório' });
     }
 
-    // Executa o yt-dlp para obter informações (sem baixar)
-    // spawn(programa, [argumentos]) — como exec() no PHP mas em tempo real
-    //
-    // Argumentos:
-    //   --dump-json     → Mostra informação do vídeo em formato JSON (não baixa)
-    //   --no-download   → Garante que não baixa nada
-    //   --ffmpeg-location → Diz onde está o ffmpeg
     const ytProcess = spawn(YT_DLP_PATH, [
         '--dump-json',
         '--no-download',
@@ -82,45 +64,35 @@ app.get('/api/info', (req, res) => {
         videoUrl
     ]);
 
-    let jsonData = '';   // Vai acumular a saída do comando
-    let errorData = '';  // Vai acumular erros, se houver
+    let jsonData = '';
+    let errorData = '';
 
-    // 'stdout' é a saída normal do programa (standard output)
-    // .on('data', ...) escuta cada pedaço de dados que chega
-    // É como ler linha a linha a saída do terminal
     ytProcess.stdout.on('data', (chunk) => {
-        // chunk é um Buffer (dados em bruto), .toString() converte para texto
         jsonData += chunk.toString();
     });
 
-    // 'stderr' é a saída de erros (standard error)
     ytProcess.stderr.on('data', (chunk) => {
         errorData += chunk.toString();
     });
 
-    // 'close' dispara quando o processo termina
-    // 'code' é o código de saída (0 = sucesso, outro = erro)
     ytProcess.on('close', (code) => {
         if (code !== 0) {
             return res.status(500).json({
-                error: 'Erro ao obter informações',
+                error: 'Erro ao obter informações do vídeo',
                 details: errorData
             });
         }
 
         try {
-            // Converte o JSON recebido do yt-dlp para um objecto JavaScript
             const info = JSON.parse(jsonData);
 
-            // Extrai só o que precisamos e envia ao frontend
             res.json({
                 title: info.title,
                 thumbnail: info.thumbnail,
                 duration: info.duration_string,
                 uploader: info.uploader,
-                // Filtra os formatos para mostrar só os úteis ao utilizador
                 formats: info.formats
-                    .filter(f => f.filesize || f.filesize_approx) // Só formatos com tamanho
+                    .filter(f => f.filesize || f.filesize_approx)
                     .map(f => ({
                         format_id: f.format_id,
                         ext: f.ext,
@@ -139,40 +111,29 @@ app.get('/api/info', (req, res) => {
 
 
 // ============================================================
-// ROTA 2: Baixar o vídeo (com progresso em tempo real via SSE)
+// ROTA: Download com progresso via SSE
 // ============================================================
-// GET /api/download?url=LINK&quality=OPCAO
 app.get('/api/download', (req, res) => {
-
     const videoUrl = req.query.url;
-    const quality = req.query.quality || 'best-video'; // Padrão: melhor vídeo
+    const quality = req.query.quality || 'best-video';
 
     if (!videoUrl) {
         return res.status(400).json({ error: 'URL é obrigatório' });
     }
 
-    // --- CONFIGURAR SERVER-SENT EVENTS (SSE) ---
-    // SSE permite enviar dados continuamente do servidor para o browser
-    // É uma conexão HTTP que fica aberta e o servidor vai "empurrando" dados
-    //
-    // Headers necessários:
-    //   Content-Type: text/event-stream  → Diz ao browser que é SSE
-    //   Cache-Control: no-cache          → Não guardar em cache
-    //   Connection: keep-alive           → Manter a conexão aberta
+    // SSE Headers
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
     });
 
-    // Função auxiliar para enviar eventos SSE
-    // O formato SSE é: "data: CONTEUDO\n\n" (duas quebras de linha no fim)
     function sendEvent(data) {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
     }
 
-    // --- MONTAR OS ARGUMENTOS DO YT-DLP ---
-    // Diferentes qualidades pedem diferentes argumentos
+    // Quality format arguments
     let formatArgs = [];
 
     switch (quality) {
@@ -191,44 +152,36 @@ app.get('/api/download', (req, res) => {
         case 'audio-only':
             formatArgs = ['-x', '--audio-format', 'mp3', '--audio-quality', '0'];
             break;
+        default:
+            formatArgs = ['-f', 'bv*+ba/b', '--merge-output-format', 'mp4'];
     }
-    // Monta o array completo de argumentos
+
     const args = [
-        ...formatArgs,                                    // Formato escolhido
-        '--ffmpeg-location', FFMPEG_PATH,                 // Onde está o ffmpeg
-       // '--merge-output-format', (quality !== 'audio-only' ? ['--merge-output-format', 'mp4'] : []), // Força MP4 para vídeo, não necessário para áudio
-        '-o', path.join(DOWNLOADS_PATH, '%(title)s.%(ext)s'),  // Onde guardar
-        '--newline',                                      // IMPORTANTE: cada update numa nova linha
-        '--progress',                                     // Mostrar progresso
-        '--js-runtimes', 'node',                          // Usar Node como JS runtime
-        videoUrl                                          // O link do vídeo
+        ...formatArgs,
+        '--ffmpeg-location', FFMPEG_PATH,
+        '-o', path.join(DOWNLOADS_PATH, '%(title)s.%(ext)s'),
+        '--newline',
+        '--progress',
+        '--js-runtimes', 'node',
+        videoUrl
     ];
 
-    // Inicia o download
     sendEvent({ type: 'start', message: 'A iniciar download...' });
 
     const ytProcess = spawn(YT_DLP_PATH, args);
 
-    // --- CAPTURAR PROGRESSO EM TEMPO REAL ---
-    // O yt-dlp escreve o progresso no stderr (não no stdout)
-    // Com --newline, cada actualização vem numa linha separada
     ytProcess.stderr.on('data', (chunk) => {
         const output = chunk.toString();
-        // As linhas de output são como: [download]  45.3% of 50.21MiB at 2.30MiB/s ETA 00:12
-
-        // Tenta extrair a percentagem com uma expressão regular (regex)
-        // \d+ = um ou mais dígitos, \.? = ponto opcional, \d* = mais dígitos opcionais
         const progressMatch = output.match(/(\d+\.?\d*)%/);
         if (progressMatch) {
             sendEvent({
                 type: 'progress',
                 percent: parseFloat(progressMatch[1]),
-                raw: output.trim()  // Envia também o texto original para debug
+                raw: output.trim()
             });
         }
     });
 
-    // stdout também pode ter informação útil
     ytProcess.stdout.on('data', (chunk) => {
         const output = chunk.toString().trim();
         if (output) {
@@ -236,18 +189,15 @@ app.get('/api/download', (req, res) => {
         }
     });
 
-    // Quando o download terminar
     ytProcess.on('close', (code) => {
         if (code === 0) {
             sendEvent({ type: 'complete', message: 'Download concluído!' });
         } else {
             sendEvent({ type: 'error', message: `Erro no download (código: ${code})` });
         }
-        // Fecha a conexão SSE
         res.end();
     });
 
-    // Se o browser fechar/cancelar, mata o processo yt-dlp
     req.on('close', () => {
         ytProcess.kill();
     });
@@ -255,12 +205,11 @@ app.get('/api/download', (req, res) => {
 
 
 // ============================================================
-// INICIAR O SERVIDOR
+// START SERVER
 // ============================================================
-// app.listen() inicia o servidor na porta definida
-// Equivalente a php artisan serve
 app.listen(PORT, () => {
     console.log(`\n✅ Servidor a correr em http://localhost:${PORT}`);
-    console.log(`📁 Downloads serão guardados em: ${DOWNLOADS_PATH}`);
-    console.log(`\nPressiona Ctrl+C para parar.\n`);
+    console.log(`📁 Downloads: ${DOWNLOADS_PATH}`);
+    console.log(`🧩 Extensão: servidor pronto para receber pedidos`);
+    console.log(`\nCtrl+C para parar.\n`);
 });
