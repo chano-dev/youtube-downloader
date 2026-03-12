@@ -1,6 +1,6 @@
 // ============================================================
 // server.js — Backend do YT Downloader
-// Actualizado com CORS para suportar a extensão do browser
+// Cross-platform: Windows, macOS, Linux
 // ============================================================
 
 const express = require('express');
@@ -11,20 +11,48 @@ const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
-const YT_DLP_PATH = path.join(__dirname, 'bin', 'yt-dlp.exe');
+// --- DETECÇÃO DO SISTEMA OPERATIVO ---
+// process.platform retorna: 'win32' (Windows), 'darwin' (macOS), 'linux' (Linux)
+const isWindows = process.platform === 'win32';
+
+// No Windows os executáveis têm .exe, nos outros sistemas não
+const YT_DLP_PATH = path.join(__dirname, 'bin', isWindows ? 'yt-dlp.exe' : 'yt-dlp');
 const FFMPEG_PATH = path.join(__dirname, 'bin');
 const DOWNLOADS_PATH = path.join(__dirname, 'downloads');
 
+// Verifica se o yt-dlp existe no caminho esperado
+if (!fs.existsSync(YT_DLP_PATH)) {
+    console.error(`\n❌ yt-dlp não encontrado em: ${YT_DLP_PATH}`);
+    console.error(`   Baixa o executável correcto para o teu sistema:`);
+    console.error(`   → Windows: yt-dlp.exe`);
+    console.error(`   → macOS/Linux: yt-dlp`);
+    console.error(`   Coloca na pasta bin/ do projecto.\n`);
+    process.exit(1);
+}
+
+// Cria a pasta downloads se não existir
 if (!fs.existsSync(DOWNLOADS_PATH)) {
     fs.mkdirSync(DOWNLOADS_PATH, { recursive: true });
+}
+
+// No Linux/macOS, garante que os executáveis têm permissão de execução
+if (!isWindows) {
+    const { execSync } = require('child_process');
+    try {
+        execSync(`chmod +x "${YT_DLP_PATH}"`);
+        const ffmpegPath = path.join(FFMPEG_PATH, 'ffmpeg');
+        const ffprobePath = path.join(FFMPEG_PATH, 'ffprobe');
+        if (fs.existsSync(ffmpegPath)) execSync(`chmod +x "${ffmpegPath}"`);
+        if (fs.existsSync(ffprobePath)) execSync(`chmod +x "${ffprobePath}"`);
+    } catch (e) {
+        // Se falhar, não é crítico
+    }
 }
 
 // --- MIDDLEWARES ---
 app.use(express.json());
 
 // CORS — permite que a extensão do browser comunique com o servidor
-// Sem isto, o browser bloqueia os pedidos vindos da extensão
-// CORS — TEM que vir antes do static e das rotas
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -39,10 +67,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 
 // ============================================================
-// ROTA: Health Check (usado pela extensão para verificar se o servidor está activo)
+// ROTA: Health Check
 // ============================================================
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'online', version: '1.0.0' });
+    res.json({ status: 'online', version: '1.1.0', platform: process.platform });
 });
 
 
@@ -121,7 +149,6 @@ app.get('/api/download', (req, res) => {
         return res.status(400).json({ error: 'URL é obrigatório' });
     }
 
-    // SSE Headers
     res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -133,7 +160,6 @@ app.get('/api/download', (req, res) => {
         res.write(`data: ${JSON.stringify(data)}\n\n`);
     }
 
-    // Quality format arguments
     let formatArgs = [];
 
     switch (quality) {
@@ -208,7 +234,11 @@ app.get('/api/download', (req, res) => {
 // START SERVER
 // ============================================================
 app.listen(PORT, () => {
+    const platformNames = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+    const platform = platformNames[process.platform] || process.platform;
+
     console.log(`\n✅ Servidor a correr em http://localhost:${PORT}`);
+    console.log(`💻 Sistema: ${platform}`);
     console.log(`📁 Downloads: ${DOWNLOADS_PATH}`);
     console.log(`🧩 Extensão: servidor pronto para receber pedidos`);
     console.log(`\nCtrl+C para parar.\n`);
