@@ -1,32 +1,44 @@
-# 🎬 YT Downloader
+# YT Downloader
 
-A simple, local web application to download YouTube videos and audio — powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) and built with Node.js + Express.
+A local web app to download YouTube videos and audio in multiple qualities. Built with Node.js, Express, and [yt-dlp](https://github.com/yt-dlp/yt-dlp). Now with a browser extension for Chrome and Edge.
 
-Paste a YouTube link, choose your quality, and download. That's it.
-
-Uma aplicação web local e simples para baixar vídeos e áudio do YouTube — usando [yt-dlp](https://github.com/yt-dlp/yt-dlp), construída com Node.js + Express.
-
-Cola o link do YouTube, escolhe a qualidade e baixa. Simples assim.
-
----
-![Interface sem link](./image.png)
-![Interface com vídeo](./image-1.png)
-![Download em progresso](./image-2.png)
-
+Uma aplicação web local para baixar vídeos e áudio do YouTube em várias qualidades. Construída com Node.js, Express e [yt-dlp](https://github.com/yt-dlp/yt-dlp). Agora com extensão para Chrome e Edge.
 
 ---
 
-## ✨ Features / Funcionalidades
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)
+![Edge](https://img.shields.io/badge/Edge-Extension-0078D7?logo=microsoftedge&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
-- 🔗 Paste any YouTube link and get video info (title, thumbnail, duration)
-- 🎬 Download video in multiple qualities (Best, 720p, 480p, 360p)
-- 🎵 Extract audio only (MP3)
-- 📊 Real-time download progress bar via Server-Sent Events
-- 🖥️ Runs entirely on localhost — no data sent to third parties
+### Web App
+
+| Dark Mode | Light Mode |
+|-----------|------------|
+| ![Dark mode - Home](./screenshots/app-home-dark.png) | ![Light mode - Video loaded](./screenshots/app-video-light.png) |
+
+| Downloading | Browser Extension |
+|-------------|-------------------|
+| ![Download in progress](./screenshots/app-download.png) | ![Extension popup](./screenshots/extension.png) |
 
 ---
 
-## 📋 Requirements / Requisitos
+## Features / Funcionalidades
+
+- Paste any YouTube link and get video info (title, thumbnail, duration)
+- Download video in multiple qualities (Best, 720p, 480p, 360p)
+- Extract audio only (MP3)
+- Real-time download progress bar via Server-Sent Events
+- Dark / Light theme toggle
+- Browser extension for Chrome and Edge with auto-fill from active tab
+- Cross-platform: works on Windows, macOS, and Linux
+- Runs entirely on localhost — no data sent to third parties
+
+---
+
+## Requirements / Requisitos
 
 | Software | Version | Download |
 |----------|---------|----------|
@@ -34,44 +46,55 @@ Cola o link do YouTube, escolhe a qualidade e baixa. Simples assim.
 | **yt-dlp** | Latest | [github.com/yt-dlp/yt-dlp/releases](https://github.com/yt-dlp/yt-dlp/releases/latest) |
 | **FFmpeg** | Latest | [ffmpeg.org/download.html](https://ffmpeg.org/download.html) |
 
-> **Note:** For Windows, download `yt-dlp.exe` and the FFmpeg **essentials** build (you need `ffmpeg.exe`, `ffplay.exe`, and `ffprobe.exe`).
+### Which files to download / Que ficheiros baixar
+
+| System | yt-dlp | FFmpeg |
+|--------|--------|--------|
+| **Windows** | `yt-dlp.exe` | ffmpeg essentials build → `ffmpeg.exe`, `ffplay.exe`, `ffprobe.exe` |
+| **macOS** | `yt-dlp_macos` (rename to `yt-dlp`) | `brew install ffmpeg` or download from ffmpeg.org |
+| **Linux** | `yt-dlp_linux` (rename to `yt-dlp`) | `sudo apt install ffmpeg` (Ubuntu/Debian) or your package manager |
 
 ---
 
-## 🚀 Installation / Instalação
+## Installation / Instalação
 
-### 1. Clone the repository / Clona o repositório
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/chano-dev/youtube-downloader.git
 cd youtube-downloader
 ```
 
-### 2. Install dependencies / Instala as dependências
+### 2. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Add the executables / Adiciona os executáveis
+### 3. Add the executables
 
-Create a `bin/` folder in the project root and place the following files inside:
-
-Cria uma pasta `bin/` na raiz do projecto e coloca lá dentro:
+Create a `bin/` folder and place the yt-dlp and FFmpeg executables inside:
 
 ```
 bin/
-├── yt-dlp.exe
-├── ffmpeg.exe
-├── ffplay.exe
-└── ffprobe.exe
+├── yt-dlp.exe          (Windows)
+├── yt-dlp              (macOS / Linux)
+├── ffmpeg / ffmpeg.exe
+├── ffplay / ffplay.exe
+└── ffprobe / ffprobe.exe
 ```
 
-> ⚠️ These files are **not included** in the repository due to their size. Download them from the links above.
->
-> ⚠️ Estes ficheiros **não estão incluídos** no repositório por serem pesados. Baixa-os nos links acima.
+**macOS / Linux only** — make the files executable:
 
-### 4. Run / Executar
+```bash
+chmod +x bin/yt-dlp bin/ffmpeg bin/ffprobe
+```
+
+> The server does this automatically on startup, but running it manually ensures there are no permission issues.
+
+> These files are **not included** in the repository due to their size. Download them from the links above.
+
+### 4. Run the server
 
 ```bash
 node server.js
@@ -79,9 +102,9 @@ node server.js
 
 Open your browser at **http://localhost:3000** and you're ready to go!
 
-Abre o browser em **http://localhost:3000** e está pronto!
+The server auto-detects your operating system — no configuration needed.
 
-> 💡 **Tip:** Install `nodemon` for auto-restart during development:
+> **Tip:** Install `nodemon` for auto-restart during development:
 > ```bash
 > npm install -g nodemon
 > nodemon server.js
@@ -89,62 +112,79 @@ Abre o browser em **http://localhost:3000** e está pronto!
 
 ---
 
-## 📁 Project Structure / Estrutura do Projecto
+## Browser Extension / Extensão do Navegador
+
+The extension works as a popup that communicates with the local server. It auto-fills the URL when you're on a YouTube page.
+
+A extensão funciona como popup que comunica com o servidor local. Preenche automaticamente o URL quando estás numa página do YouTube.
+
+### How to install / Como instalar
+
+1. Open `chrome://extensions/` (Chrome) or `edge://extensions/` (Edge)
+2. Enable **Developer mode** (toggle in the top right corner)
+3. Click **"Load unpacked"** / **"Carregar sem compactação"**
+4. Select the `extension/` folder from the project
+
+> The local server must be running (`node server.js`) for the extension to work.
+
+### Extension features
+
+- Auto-detects YouTube URL from the active tab
+- Server status indicator (online/offline)
+- Same quality options and dark/light theme as the web app
+- Works on Chrome, Edge, and other Chromium-based browsers
+
+---
+
+## Project Structure / Estrutura do Projecto
 
 ```
 youtube-downloader/
 │
-├── server.js           ← Backend (Node.js + Express)
-├── package.json        ← Project config & dependencies
+├── server.js              ← Backend (Node.js + Express)
+├── package.json           ← Project config & dependencies
 │
-├── public/             ← Frontend (served as static files)
-│   ├── index.html      ← User interface
-│   ├── style.css       ← Styles
-│   └── app.js          ← Frontend logic (fetch, SSE)
+├── public/                ← Web app frontend
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
 │
-├── bin/                ← Executables (not included in repo)
-│   ├── yt-dlp.exe
-│   ├── ffmpeg.exe
-│   ├── ffplay.exe
-│   └── ffprobe.exe
+├── extension/             ← Browser extension (Chrome/Edge)
+│   ├── manifest.json
+│   ├── popup.html
+│   ├── popup.css
+│   ├── popup.js
+│   └── icons/
 │
-└── downloads/          ← Downloaded files (auto-created)
+├── bin/                   ← Executables (not in repo)
+├── downloads/             ← Downloaded files (auto-created)
+└── screenshots/           ← App screenshots
 ```
 
 ---
 
-## 🔧 How It Works / Como Funciona
-
-1. The frontend sends the YouTube URL to the Express backend
-2. The backend spawns `yt-dlp` as a child process
-3. Download progress is streamed to the browser in real-time using **Server-Sent Events (SSE)**
-4. The downloaded file is saved to the `downloads/` folder
-
----
-
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend:** Node.js, Express, child_process (spawn)
 - **Frontend:** HTML, CSS, JavaScript (vanilla)
+- **Extension:** Manifest V3 (Chrome/Edge)
 - **Download engine:** yt-dlp + FFmpeg
 - **Real-time updates:** Server-Sent Events (SSE)
 
 ---
 
-## 📝 License / Licença
+## License / Licença
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 👤 Author / Autor
+## Author / Autor
 
 **Charles Nuno** — [@chano-dev](https://github.com/chano-dev)
 
 ---
 
-## ⭐ Support / Apoio
+If this project helped you, leave a star on the repository!
 
-If this project helped you, leave a ⭐ on the repository!
-
-Se este projecto te ajudou, deixa uma ⭐ no repositório!
+Se este projecto te ajudou, deixa uma estrela no repositório!
