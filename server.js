@@ -88,6 +88,7 @@ app.get('/api/info', (req, res) => {
         '--dump-json',
         '--no-download',
         '--ffmpeg-location', FFMPEG_PATH,
+        '--no-update',
         '--js-runtimes', 'node',
         videoUrl
     ]);
@@ -105,6 +106,8 @@ app.get('/api/info', (req, res) => {
 
     ytProcess.on('close', (code) => {
         if (code !== 0) {
+            console.error(`[ERRO /api/info] yt-dlp terminou com código ${code}`);
+            console.error(`[ERRO /api/info] Stderr: ${errorData}`);
             return res.status(500).json({
                 error: 'Erro ao obter informações do vídeo',
                 details: errorData
@@ -120,7 +123,8 @@ app.get('/api/info', (req, res) => {
                 duration: info.duration_string,
                 uploader: info.uploader,
                 formats: info.formats
-                    .filter(f => f.filesize || f.filesize_approx)
+                    .filter(f => f.vcodec !== 'none' || f.acodec !== 'none')
+                    .filter(f => f.protocol !== 'mhtml')
                     .map(f => ({
                         format_id: f.format_id,
                         ext: f.ext,
@@ -188,6 +192,7 @@ app.get('/api/download', (req, res) => {
         '-o', path.join(DOWNLOADS_PATH, '%(title)s.%(ext)s'),
         '--newline',
         '--progress',
+        '--no-update',
         '--js-runtimes', 'node',
         videoUrl
     ];
@@ -219,6 +224,7 @@ app.get('/api/download', (req, res) => {
         if (code === 0) {
             sendEvent({ type: 'complete', message: 'Download concluído!' });
         } else {
+            console.error(`[ERRO /api/download] yt-dlp terminou com código ${code}`);
             sendEvent({ type: 'error', message: `Erro no download (código: ${code})` });
         }
         res.end();

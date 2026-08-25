@@ -118,7 +118,8 @@ async function getVideoInfo() {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error || 'Não foi possível obter informações do vídeo.');
+            const details = data.details ? `\n${data.details.trim()}` : '';
+            throw new Error(`${data.error || 'Não foi possível obter informações do vídeo.'}${details}`);
         }
 
         // Populate video card
